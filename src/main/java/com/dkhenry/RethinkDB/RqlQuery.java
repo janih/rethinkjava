@@ -522,6 +522,10 @@ abstract public class RqlQuery {
 		public RqlMethodQuery.IndexList index_list(Object ...args) {
 			return prepend_construct(args, RqlMethodQuery.IndexList.class);
 		}
+		
+		public RqlMethodQuery.IndexWait index_wait(Object ...args) {
+			return prepend_construct(args, RqlMethodQuery.IndexWait.class);
+		}
 
 		@Override
 		public RqlMethodQuery.Filter filter(Object ...args) {
