@@ -1,7 +1,5 @@
 package com.dkhenry.RethinkDB;
 
-import java.lang.reflect.Constructor;
-
 import com.rethinkdb.Ql2.Term;
 import com.rethinkdb.Ql2.Term.TermType;
 

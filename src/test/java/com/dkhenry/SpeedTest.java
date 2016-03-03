@@ -1,8 +1,5 @@
 package com.dkhenry;
 
-import org.testng.annotations.DataProvider;
-import org.testng.annotations.Test;
-
 import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -10,7 +7,11 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Random;
 
-import com.dkhenry.RethinkDB.*; 
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Test;
+
+import com.dkhenry.RethinkDB.RqlConnection;
+import com.dkhenry.RethinkDB.RqlCursor;
 import com.dkhenry.RethinkDB.errors.RqlDriverException;
 
 public class SpeedTest {

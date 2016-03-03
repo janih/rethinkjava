@@ -1,15 +1,16 @@
 package com.dkhenry;
 
-import com.dkhenry.RethinkDB.RqlConnection;
-import com.dkhenry.RethinkDB.RqlCursor;
-import com.dkhenry.RethinkDB.RqlObject;
-import com.dkhenry.RethinkDB.errors.RqlDriverException;
-import org.testng.annotations.Test;
-
 import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.HashMap;
+
+import org.testng.annotations.Test;
+
+import com.dkhenry.RethinkDB.RqlConnection;
+import com.dkhenry.RethinkDB.RqlCursor;
+import com.dkhenry.RethinkDB.RqlObject;
+import com.dkhenry.RethinkDB.errors.RqlDriverException;
 
 public class RegressionTests {
     @SuppressWarnings({ "unchecked", "rawtypes", "serial" })

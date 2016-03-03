@@ -1,13 +1,17 @@
 package com.dkhenry;
 
-import com.dkhenry.RethinkDB.*;
-import com.dkhenry.RethinkDB.errors.RqlDriverException;
+import java.util.Arrays;
+
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 import org.testng.AssertJUnit;
 import org.testng.annotations.Test;
 
-import java.util.Arrays;
+import com.dkhenry.RethinkDB.Function;
+import com.dkhenry.RethinkDB.RqlConnection;
+import com.dkhenry.RethinkDB.RqlCursor;
+import com.dkhenry.RethinkDB.RqlQuery;
+import com.dkhenry.RethinkDB.errors.RqlDriverException;
 
 @RunWith(JUnit4.class)
 public class PredicateTest {

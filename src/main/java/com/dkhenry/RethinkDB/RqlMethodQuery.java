@@ -264,7 +264,7 @@ public abstract class RqlMethodQuery extends RqlQuery {
 		}
 		@Override
 		protected TermType tt() {
-			return Term.TermType.CONCATMAP;
+			return Term.TermType.CONCAT_MAP;
 		}
 	}
 
@@ -274,7 +274,7 @@ public abstract class RqlMethodQuery extends RqlQuery {
 		}
 		@Override
 		protected TermType tt() {
-			return Term.TermType.ORDERBY;
+			return Term.TermType.ORDER_BY;
 		}
 	}
 
@@ -305,16 +305,6 @@ public abstract class RqlMethodQuery extends RqlQuery {
 		@Override
 		protected TermType tt() {
 			return Term.TermType.UNION;
-		}
-	}
-
-	public static class IndexesOf extends RqlMethodQuery {
-		public  IndexesOf(Object ...args) {
-			construct(args);
-		}
-		@Override
-		protected TermType tt() {
-			return Term.TermType.INDEXES_OF;
 		}
 	}
 
@@ -384,7 +374,7 @@ public abstract class RqlMethodQuery extends RqlQuery {
 		}
 		@Override
 		protected TermType tt() {
-			return Term.TermType.TYPEOF;
+			return Term.TermType.TYPE_OF;
 		}
 	}
 
@@ -454,7 +444,7 @@ public abstract class RqlMethodQuery extends RqlQuery {
 		}
 		@Override
 		protected TermType tt() {
-			return Term.TermType.FOREACH;
+			return Term.TermType.FOR_EACH;
 		}
 	}
 

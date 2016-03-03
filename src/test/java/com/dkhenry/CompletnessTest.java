@@ -5,6 +5,7 @@ import java.util.Iterator;
 
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+
 import com.rethinkdb.Ql2.Term;
 
 public class CompletnessTest {

@@ -1,8 +1,15 @@
 package com.dkhenry.RethinkDB;
 
 import java.lang.reflect.Constructor;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import com.rethinkdb.Ql2.Term;
 import com.rethinkdb.Ql2.Term.TermType;
@@ -292,9 +299,9 @@ abstract public class RqlQuery {
 	 * some of this functionality in place before I make it all perty
 	 */
 
-	public RqlMethodQuery.IndexesOf indexes_of(Object ...args) {
+	/*public RqlMethodQuery.IndexesOf indexes_of(Object ...args) {
 		return prepend_construct(args,RqlMethodQuery.IndexesOf.class);
-	}
+	}*/
 
 	public RqlMethodQuery.Reduce reduce(Object ...args) {
 		return prepend_construct(args,RqlMethodQuery.Reduce.class);
@@ -349,23 +356,25 @@ abstract public class RqlQuery {
 		return new RqlQuery.Datum(t);
 	}
 
-	public Term build() {
-		Term.Builder t = Term.newBuilder()
-				.setType(tt());
+    // Returns one of JSONArray, JSONObject, String, Double, Boolean, JSONObject.Null
+	public Object build() {
+		JSONArray t = new JSONArray();
+		// The format is [TermType, Args, Optargs]
+		t.put(tt().getNumber());
+
+		JSONArray a = new JSONArray();
 		for(RqlQuery q: _args) {
-			t.addArgs(q.build());
+			a.put(q.build());
 		}
-        if(! _optargs.isEmpty()) {
-            for(Entry<String,Object> e: _optargs.entrySet()) {
-                t.addOptargs(
-                        Term.AssocPair.newBuilder()
-                                .setKey(e.getKey())
-                                .setVal(eval(e.getValue()).build())
-                                .build()
-                );
-            }
+		t.put(a);
+
+        JSONObject oa = new JSONObject();
+        for(Entry<String,Object> e: _optargs.entrySet()) {
+            oa.put(e.getKey(), RqlQuery.eval(e.getValue()).build());
         }
-		return t.build();
+        t.put(oa);
+
+		return t;
 	}
 
 	public static class Datum extends RqlQuery {
@@ -377,15 +386,12 @@ abstract public class RqlQuery {
 
 		@Override
 		protected TermType tt() {
-			return Term.TermType.DATUM;
+			return null;
 		}
 
 		@Override
-		public Term build() {
-			Term.Builder t = Term.newBuilder()
-					.setType(tt());
-			t.setDatum(com.dkhenry.RethinkDB.Datum.datum(_data));
-			return t.build();
+		public Object build() {
+			return com.dkhenry.RethinkDB.Datum.datum(_data);
 		}
 	}
 
@@ -522,11 +528,11 @@ abstract public class RqlQuery {
 		public RqlMethodQuery.IndexList index_list(Object ...args) {
 			return prepend_construct(args, RqlMethodQuery.IndexList.class);
 		}
-		
+
 		public RqlMethodQuery.IndexWait index_wait(Object ...args) {
 			return prepend_construct(args, RqlMethodQuery.IndexWait.class);
 		}
-
+		
 		@Override
 		public RqlMethodQuery.Filter filter(Object ...args) {
 			return prepend_construct(args, RqlMethodQuery.Filter.class);

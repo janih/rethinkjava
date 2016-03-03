@@ -2,17 +2,20 @@ package com.dkhenry.RethinkDB;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import com.dkhenry.RethinkDB.errors.RqlDriverException;
-import com.rethinkdb.Ql2;
 import com.rethinkdb.Ql2.Query;
-import com.rethinkdb.Ql2.Response;
 
 public class RqlConnection {
 	private SocketChannel _sc;    
@@ -86,37 +89,49 @@ public class RqlConnection {
         return run(query,null);
     }
 
-    public RqlCursor run(RqlQuery query, HashMap<String,Object> optargs) throws RqlDriverException {
-		Query.Builder q =  com.rethinkdb.Ql2.Query.newBuilder();		
-		q.setType(Query.QueryType.START);
-		q.setToken(nextToken()); 
-		q.setQuery(query.build());
-        if( null != optargs ) {
-            for(Map.Entry<String,Object> e: optargs.entrySet()) {
-                q.addGlobalOptargs(
-                    Query.AssocPair.newBuilder()
-                            .setKey(e.getKey())
-                            .setVal(RqlQuery.eval(e.getValue()).build())
-                            .build()
-                );
-            }
-        }
+    private void sendQueryArray(JSONArray q, long token) throws RqlDriverException {
+        String qString = q.toString();
+        int qLength = qString.getBytes().length;
+
+		ByteBuffer buffer = ByteBuffer.allocate(qLength + 8 + 4);
+		buffer.order(ByteOrder.LITTLE_ENDIAN);
+		buffer.putLong(token);
+		buffer.putInt(qLength);
+		buffer.put(qString.getBytes());
+
 		try {
-			send_raw(q.build().toByteArray());
+			send_raw(buffer.array());
 		} catch (IOException ex) { 
 			throw new RqlDriverException(ex.getMessage());
 		}
+    }
+
+    public RqlCursor run(RqlQuery query, HashMap<String,Object> optargs) throws RqlDriverException {
+        JSONArray q = new JSONArray();
+		// The format is [QueryType, Term, Optargs]
+		q.put(Query.QueryType.START.getNumber());
+		q.put(query.build());
+
+        JSONObject oa = new JSONObject();
+        if (optargs != null) {
+            for(Map.Entry<String,Object> e: optargs.entrySet()) {
+                oa.put(e.getKey(), RqlQuery.eval(e.getValue()).build());
+            }
+        }
+        q.put(oa);
+
+        sendQueryArray(q, nextToken());
 		Response rsp = get(); 
 
 		// For this version we only support success :-(
 		switch(rsp.getType()) {
-		case SUCCESS_ATOM:
-		case SUCCESS_SEQUENCE:
-		case SUCCESS_PARTIAL:
-			return new RqlCursor(this,rsp);
-		case CLIENT_ERROR:
-		case COMPILE_ERROR:
-		case RUNTIME_ERROR:
+			case SUCCESS_ATOM:
+			case SUCCESS_SEQUENCE:
+			case SUCCESS_PARTIAL:
+				return new RqlCursor(this, rsp);
+			case CLIENT_ERROR:
+			case COMPILE_ERROR:
+			case RUNTIME_ERROR:
 		default:
 			throw new RqlDriverException(rsp.toString());							
 		}							
@@ -125,20 +140,20 @@ public class RqlConnection {
 	public Response get() throws RqlDriverException {
 		try {
 			return recv_raw();
-		} catch (IOException ex) { 
+		} catch (IOException ex) {
+			ex.printStackTrace();
 			throw new RqlDriverException(ex.getMessage());
 		}
 	}
 	
 	public Response get_more(long token) throws RqlDriverException {
 		// Send the [CONTINUE] query 
-		Query.Builder q = com.rethinkdb.Ql2.Query.newBuilder()
-					.setType(Query.QueryType.CONTINUE)
-					.setToken(token);
-		try { 
-			send_raw(q.build().toByteArray());
-			return recv_raw();
-		} catch (IOException ex) {
+		JSONArray q = new JSONArray();
+		q.put(Query.QueryType.CONTINUE.getNumber());
+		sendQueryArray(q, token);
+		try {
+	        return recv_raw();
+	    } catch (IOException ex) { 
 			throw new RqlDriverException(ex.getMessage());
 		}
 	}
@@ -180,35 +195,40 @@ public class RqlConnection {
 			if( _connected ) {
 				_sc.close();
 			}
-			_sc = SocketChannel.open(); 
+			_sc = SocketChannel.open();
+			// Disable Nagle's algorithm for better performance 
+		    _sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
 			_sc.configureBlocking( true );
 			_sc.connect(new InetSocketAddress(_hostname,_port));
 
-			ByteBuffer buffer = ByteBuffer.allocate(4); 
-			buffer.order(ByteOrder.LITTLE_ENDIAN);
+            // magic value + auth key length + protocol type
+            int requiredSize = 4 + 4 + 4;
             if( _secured ) {
-                buffer = ByteBuffer.allocate(4 + 4 + _authKey.length());
-                buffer.order(ByteOrder.LITTLE_ENDIAN);
-			    buffer.putInt(com.rethinkdb.Ql2.VersionDummy.Version.V0_2_VALUE);
+                requiredSize += _authKey.length();
+            }
+            ByteBuffer buffer = ByteBuffer.allocate(requiredSize);
+			buffer.order(ByteOrder.LITTLE_ENDIAN);
+
+            buffer.putInt(com.rethinkdb.Ql2.VersionDummy.Version.V0_3_VALUE);
+            if ( _secured ) {
                 buffer.putInt(_authKey.length());
                 buffer.put(_authKey.getBytes());
             } else {
-                buffer.putInt(com.rethinkdb.Ql2.VersionDummy.Version.V0_1_VALUE);
+                buffer.putInt(0);
             }
+            buffer.putInt(com.rethinkdb.Ql2.VersionDummy.Protocol.JSON_VALUE);
 
 			buffer.flip();
 			while(buffer.hasRemaining()) { 
 				_sc.write(buffer);
 			}
 
-            // If we are working with a v2 connection then we need to get the response string
-            if( _secured ) {
-                ByteBuffer response = ByteBuffer.allocate(4096);
-                _sc.read(response);
-                String s = new String(response.array(), "UTF-8");
-                if(s.equals("SUCCESS")) {
-                    throw new RqlDriverException(s);
-                }
+            // Get the response string
+            ByteBuffer response = ByteBuffer.allocate(4096);
+            _sc.read(response);
+            String s = new String(response.array(), Charset.forName("UTF-8"));
+            if(s.equals("SUCCESS")) {
+                throw new RqlDriverException(s);
             }
 
 			_connected = true;
@@ -249,27 +269,24 @@ public class RqlConnection {
         return r;
     }
 
-	public static void rethink_send(SocketChannel sc, byte[] data) throws IOException { 
-		ByteBuffer buffer = ByteBuffer.allocate(4+data.length); 
-		buffer.order(ByteOrder.LITTLE_ENDIAN);
-		buffer.putInt(data.length); 
-		buffer.put(data); 
-		buffer.flip();
+	public static void rethink_send(SocketChannel sc, byte[] data) throws IOException {
+		ByteBuffer buffer = ByteBuffer.wrap(data);
 
 		while(buffer.hasRemaining()) { 
 			sc.write(buffer); 
-		}		
+		}
 	}
 
 	public static Response rethink_recv(SocketChannel sc) throws IOException {
-		ByteBuffer datalen = ByteBuffer.allocate(4); 
-		datalen.order(ByteOrder.LITTLE_ENDIAN);
-		int bytesRead = sc.read(datalen); 
-		if( bytesRead != 4 ) { 
-			throw new IOException("Incorrect amount of data read " + (new Integer(bytesRead)).toString() + " (expected 4) ");
+		ByteBuffer header = ByteBuffer.allocate(8 + 4); 
+		header.order(ByteOrder.LITTLE_ENDIAN);
+		int bytesRead = 0;
+		while( bytesRead != 8 + 4 ){ 
+			 bytesRead += sc.read(header);
 		}
-		datalen.flip();
-		int len = datalen.getInt();
+		header.flip();
+		long token = header.getLong();
+		int len = header.getInt();
 
 		ByteBuffer buf = ByteBuffer.allocate(len);
 		bytesRead = 0;
@@ -277,7 +294,6 @@ public class RqlConnection {
 			 bytesRead += sc.read(buf);		
 		}
 		buf.flip();
-		com.rethinkdb.Ql2.Response r = com.rethinkdb.Ql2.Response.parseFrom(buf.array()); 
-		return r;
+		return new Response(token, buf.array());
 	}
 }

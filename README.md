@@ -3,6 +3,7 @@ rethinkjava
 
 Java/JVM Drivers for RethinkDB ( rethinkdb.com )
 
+See the official Java driver here: https://rethinkdb.com/docs/install-drivers/java/
 
 # Status
 
@@ -20,6 +21,9 @@ deployment
 * 0.7 (December 2013) Fixed error encoding NULL. Updated protobuf to most recent version ( 1.11.2 )
 * 0.8 (Februrary 2014) Full support for v2 of the connection protocol including authentication
 * 0.9 (April 2014) Added support for optional arguments. Additional testing
+* 0.10
+* 0.11 (January 2016)
+* 0.12 (March 2016) Support JSON protocol.
 
 ## Using rethinkjava 
 Add the following to your pom.xml

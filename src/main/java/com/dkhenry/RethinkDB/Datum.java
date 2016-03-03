@@ -2,53 +2,46 @@ package com.dkhenry.RethinkDB;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import com.dkhenry.RethinkDB.errors.RqlDriverException;
 
 public class Datum {
 	/* Datum Constructors */
 
-    public static com.rethinkdb.Ql2.Datum datum() {
-        return com.rethinkdb.Ql2.Datum.newBuilder()
-                .setType(com.rethinkdb.Ql2.Datum.DatumType.R_NULL)
-                .build();
+    public static Object datum() {
+        return JSONObject.NULL;
     }
 	/* We will specialize for all types defined in the protocol */
-    public static com.rethinkdb.Ql2.Datum datum(Boolean b) {    	
-    	return com.rethinkdb.Ql2.Datum.newBuilder()
-				.setType(com.rethinkdb.Ql2.Datum.DatumType.R_BOOL)
-				.setRBool(b)
-				.build();
+    public static Object datum(Boolean b) {    	
+    	return b;
     }
-    public static com.rethinkdb.Ql2.Datum datum(String s) {
-    	return com.rethinkdb.Ql2.Datum.newBuilder()
-				.setType(com.rethinkdb.Ql2.Datum.DatumType.R_STR)
-				.setRStr(s)
-				.build();
+    public static Object datum(String s) {
+        return s;
     }
-    public static com.rethinkdb.Ql2.Datum datum(Double d) {
-    	return com.rethinkdb.Ql2.Datum.newBuilder()
-				.setType(com.rethinkdb.Ql2.Datum.DatumType.R_NUM)
-				.setRNum(d)
-				.build();
+    public static Object datum(Double d) {
+    	return d;
     }
     
     /* We want to cast all "Numbers" to Doubles */
-    public static<T extends Number> com.rethinkdb.Ql2.Datum datum(T n) {
+    public static<T extends Number> Object datum(T n) {
     	return datum(n.doubleValue());
     }
 
     /* For any type we haven't specialized we are going to cast to a string */ 
-    public static <T> com.rethinkdb.Ql2.Datum datum(T t) {
+    public static <T> Object datum(T t) {
         if( null == t ) {
             return datum();
         } else if(t instanceof Boolean) {
     		return datum((Boolean) t);
     	} else if( Number.class.isAssignableFrom(t.getClass()) ) {
-    		return datum(((Number)t).doubleValue());
+    		return datum((Number) t);
     	} else if( t instanceof List) { 
     		return datum((List) t);
     	} else if( t instanceof Map) {
@@ -59,54 +52,73 @@ public class Datum {
     }
     
     // The R Array
-    public static <T> com.rethinkdb.Ql2.Datum datum(List<T> a) {
-    	com.rethinkdb.Ql2.Datum.Builder b =  com.rethinkdb.Ql2.Datum.newBuilder()
-    			.setType(com.rethinkdb.Ql2.Datum.DatumType.R_ARRAY);
+    public static <T> Object datum(List<T> a) {
+    	JSONArray b = new JSONArray();
     	for(T value: a) {
-    		b.addRArray(datum(value));
+    		b.put(datum(value));
     	}
-    	return b.build();
+    	return b;
     }
     
     // This is the R_OBJECT
-    public static <K,V> com.rethinkdb.Ql2.Datum datum(Map<K,V> h){
-    	com.rethinkdb.Ql2.Datum.Builder b = com.rethinkdb.Ql2.Datum.newBuilder()
-    			.setType(com.rethinkdb.Ql2.Datum.DatumType.R_OBJECT);
+    public static <K,V> Object datum(Map<K,V> h){
+    	JSONObject b = new JSONObject();
     	for(Entry<K, V> entry: h.entrySet()) {
-    		b.addRObject(
-    				com.rethinkdb.Ql2.Datum.AssocPair.newBuilder()
-    					.setKey(entry.getKey().toString())
-    					.setVal(datum(entry.getValue()))
-    					.build()
-    				);
+    		b.put(entry.getKey().toString(), datum(entry.getValue()));
     	}
-    	return b.build();
+    	return b;
+    }
+
+    public static Object deconstruct(Boolean d) throws RqlDriverException {
+        return d;
+    }
+
+    public static Object deconstruct(Double d) throws RqlDriverException {
+        return d;
     }
     
-    public static Object deconstruct(com.rethinkdb.Ql2.Datum d) throws RqlDriverException {
-    	switch(d.getType()) { 
-    	case R_NULL:
-    		return null;
-    	case R_BOOL:
-    		return d.getRBool();
-    	case R_NUM:
-    		return d.getRNum();
-    	case R_STR:
-    		return d.getRStr();
-    	case R_ARRAY:
-    		ArrayList<Object> l = new ArrayList<Object>(); 
-    		for(com.rethinkdb.Ql2.Datum datum :d.getRArrayList()) {
-    			l.add(deconstruct(datum));
-    		}
-    		return l;
-    	case R_OBJECT:
-    		HashMap<String,Object> m = new HashMap<String, Object>();
-    		for(com.rethinkdb.Ql2.Datum.AssocPair ap :d.getRObjectList()) {
-    			m.put(ap.getKey(),deconstruct(ap.getVal()));
-    		}
-    		return m;
-    	default:
-    		throw new RqlDriverException("Unknown Datum Type " + d.getType().toString() + " presented for Deconstruction") ;
-    	}
+    public static Object deconstruct(String d) throws RqlDriverException {
+        return d;
+    }
+    
+    public static Object deconstruct(Map d) throws RqlDriverException {
+        return d;
+    }    
+
+    private static List<Object> deconstructList(JSONArray d) throws RqlDriverException {
+        List<Object> list = new ArrayList<Object>(); 
+		for(int i = 0; i < d.length(); ++i) {
+			list.add(deconstruct(d.get(i)));
+		}
+		return list;
+    }
+
+    private static Map<String,Object> deconstructMap(JSONObject d) throws RqlDriverException {
+    	Map<String,Object> map = new HashMap<String, Object>();
+        Iterator<String> keys = d.keys();
+        while(keys.hasNext()) {
+            String key = keys.next();
+            Object obj = d.get(key);
+            map.put(key, deconstruct(obj));
+		}
+		return map;
+    }
+    
+    public static Object deconstruct(Object d) throws RqlDriverException {
+        if (d == null || d == JSONObject.NULL) {
+            return null;
+        } else if(d instanceof JSONObject) {
+            return deconstructMap((JSONObject)d);
+        } else if(d instanceof JSONArray) {
+            return deconstructList((JSONArray)d);
+        } else if(d instanceof Boolean) {
+            return deconstruct((Boolean)d);
+        } else if(d instanceof Number) {
+            return deconstruct(new Double(((Number)d).doubleValue()));
+        } else if(d instanceof String) {
+            return deconstruct((String)d);
+        } else {
+            throw new RqlDriverException("Unknown Datum Type " + d.getClass().getName() + " presented for Deconstruction") ;
+        }
     }
 }

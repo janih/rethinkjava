@@ -4,7 +4,6 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 import com.dkhenry.RethinkDB.errors.RqlDriverException;
-import com.rethinkdb.Ql2.Response;
 
 public class RqlCursor implements Iterable<RqlObject> ,Iterator<RqlObject> {
 	
@@ -36,7 +35,7 @@ public class RqlCursor implements Iterable<RqlObject> ,Iterator<RqlObject> {
 	public boolean hasNext() {
 		if (_index < _response.getResponseCount()) {
 			return true;
-		} else if (_response.getType() == Response.ResponseType.SUCCESS_PARTIAL) {
+		} else if (_response.getType() == com.rethinkdb.Ql2.Response.ResponseType.SUCCESS_PARTIAL) {
 			try {
 				_response = _connection.get_more(_response.getToken());
 			} catch (RqlDriverException e) {
@@ -50,17 +49,16 @@ public class RqlCursor implements Iterable<RqlObject> ,Iterator<RqlObject> {
    
 	@Override
 	public RqlObject next() {
-		if( _index < _response.getResponseCount()) { 
-			return new RqlObject(_response.getResponse(_index++));
-		} else if( _response.getType() == Response.ResponseType.SUCCESS_PARTIAL){ 			
-			try {
+		try {
+			if( _index < _response.getResponseCount()) { 
+				return new RqlObject(_response.getResponse(_index++));
+			} else if( _response.getType() == com.rethinkdb.Ql2.Response.ResponseType.SUCCESS_PARTIAL){ 			
 				_response = _connection.get_more(_response.getToken());
 				_index = 0;
 				return next();
-			} catch (RqlDriverException e) {
-				throw new NoSuchElementException(e.getMessage());
-			}			
-			
+			}
+		} catch (RqlDriverException e) {
+			throw new NoSuchElementException(e.getMessage());
 		}
 		throw new NoSuchElementException("The RqlCursor has no more elements");		
 	}
